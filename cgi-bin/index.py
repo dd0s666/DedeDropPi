@@ -9,18 +9,31 @@ import uuid
 
 import RPi.GPIO as GPIO
 import time
+from multiprocessing import Process
+import os
+import logging
 
-#MJKZZ_PIN = 28 
-MJKZZ_PIN = 38 
+MJKZZ_PIN = 38  # GPIO 28
+
+LAG = 0.45 	# 0.45s => 330ms
+#LAG = 0.5	# 0.5s  => 280ms
+
+
+def takePicture(imgName):
+    try:
+        logging.warning("Configure camera ....")
+        camera = picamera.PiCamera()
+        camera.rotation = 180
+        camera.iso = 100
+        camera.shutter_speed = 50000 # 0.5s
+        camera.capture(imgName)
+        logging.warning("Picture taken ....")
+    finally:
+        camera.close()
 
 def setupGPIO():
 	GPIO.setmode(GPIO.BOARD)       # Numbers GPIOs by physical location
 	GPIO.setup(MJKZZ_PIN, GPIO.OUT)
-	GPIO.output(MJKZZ_PIN, GPIO.LOW)
-
-def drop():
-	GPIO.output(MJKZZ_PIN, GPIO.HIGH)
-	time.sleep(1)
 	GPIO.output(MJKZZ_PIN, GPIO.LOW)
 
 def cleanGPIO():
@@ -29,14 +42,19 @@ def cleanGPIO():
 
 imgName = "photos/%s.jpg" % str(uuid.uuid1())
 try:
-    camera = picamera.PiCamera()
     setupGPIO()
-#    camera.rotation = 90 
-    drop()
-    camera.capture(imgName)
-    
+    p = Process(target=takePicture, args=(imgName,))
+    p.start()
+
+    logging.warning("Starting MJKZZ ....")
+    time.sleep(0.45)
+    GPIO.output(MJKZZ_PIN, GPIO.HIGH)
+    time.sleep(1)
+    GPIO.output(MJKZZ_PIN, GPIO.LOW)
+    p.join()
+    logging.warning("-- After JOIN --")
+   
 finally:
-    camera.close()
     cleanGPIO()
 # http://picamera.readthedocs.io/en/release-1.12/recipes2.html#using-a-flash-with-the-camera
 
